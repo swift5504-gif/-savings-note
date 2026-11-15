@@ -1,0 +1,1 @@
+{"name":"貯金ノート","short_name":"貯金ノート","description":"平日400円の支出と40,000円貯金目標を管理","start_url":"./","scope":"./","display":"standalone","background_color":"#0d1514","theme_color":"#101b19","icons":[{"src":"icon.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}

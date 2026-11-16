@@ -1,15 +1,57 @@
 'use strict';
 const KEY='savings-note-v1';
+const CACHE='savings-note-v2';
 const defaults=()=>({version:1,opening:10000,target:40000,stashEstimate:5000,entries:[]});
 let state;
-try{const data=JSON.parse(localStorage.getItem(KEY));state=validate(data)?data:defaults()}catch{state=defaults()}
+try {
+  const raw = localStorage.getItem(KEY);
+
+  if (raw === null) {
+    state = defaults();
+  } else {
+    const data = JSON.parse(raw);
+    if (!validate(data)) {
+      throw new Error('保存データの形式が不正です');
+    }
+    state = data;
+  }
+} catch (err) {
+  alert(
+    '保存データを読み込めませんでした。\n' +
+    'データは削除していません。\n' +
+    err.message
+  );
+  throw err;
+}
+
 const $=id=>document.getElementById(id),yen=n=>Math.round(n).toLocaleString('ja-JP')+'円';
 const localDate=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const today=()=>localDate(new Date());
 const parseDate=s=>new Date(s+'T12:00:00');
 function validate(d){return d&&d.version===1&&Number.isSafeInteger(d.opening)&&d.opening>=0&&Number.isSafeInteger(d.target)&&d.target>0&&Number.isSafeInteger(d.stashEstimate)&&d.stashEstimate>=0&&d.stashEstimate<=10000&&Array.isArray(d.entries)&&d.entries.length<100000&&d.entries.every(e=>e&&typeof e.id==='string'&&['expense','saving','stash','adjust'].includes(e.kind)&&Number.isSafeInteger(e.amount)&&e.amount>0&&/^\d{4}-\d{2}-\d{2}$/.test(e.date)&&!Number.isNaN(parseDate(e.date).getTime())&&typeof e.memo==='string'&&e.memo.length<=100)}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(state));return true}catch{alert('保存できませんでした。ストレージの空き容量やプライベートブラウズを確認してください。');return false}}
-function balance(){return state.opening+state.entries.reduce((n,e)=>n+(e.kind==='saving'||e.kind==='stash'?e.amount:e.kind==='adjust'?-e.amount:0),0)}
+function save() {
+  try {
+    const json = JSON.stringify(state);
+
+    // 保存前にデータ形式を確認
+    if (!validate(state)) {
+      throw new Error('保存データの形式が不正です');
+    }
+
+    localStorage.setItem(KEY, json);
+
+    // 実際に保存された内容を読み直す
+    const stored = localStorage.getItem(KEY);
+    if (stored !== json) {
+      throw new Error('保存内容の照合に失敗しました');
+    }
+
+    return true;
+  } catch (err) {
+    alert('保存できませんでした: ' + err.message);
+    return false;
+  }
+}function balance(){return state.opening+state.entries.reduce((n,e)=>n+(e.kind==='saving'||e.kind==='stash'?e.amount:e.kind==='adjust'?-e.amount:0),0)}
 function weekStart(d){const a=new Date(d);a.setHours(12,0,0,0);a.setDate(a.getDate()-((a.getDay()+6)%7));return a}
 function spentThisWeek(){const start=localDate(weekStart(new Date())),end=new Date(parseDate(start));end.setDate(end.getDate()+7);const limit=localDate(end);return state.entries.filter(e=>e.kind==='expense'&&e.date>=start&&e.date<limit&&[1,2,3,4,5].includes(parseDate(e.date).getDay())).reduce((n,e)=>n+e.amount,0)}
 function forecast(){let b=balance();if(b>=state.target)return '目標達成！';const start=new Date();start.setHours(12,0,0,0);const recorded=new Set(state.entries.filter(e=>e.kind==='saving').map(e=>e.date));for(let i=0;i<3650;i++){const d=new Date(start);d.setDate(d.getDate()+i);const ds=localDate(d);if(d.getDay()===1&&!recorded.has(ds))b+=1000;if(d.getDate()===27&&!state.entries.some(e=>e.kind==='stash'&&e.date===ds))b+=state.stashEstimate;if(b>=state.target)return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日頃`;}return '10年以内の達成予測なし'}
